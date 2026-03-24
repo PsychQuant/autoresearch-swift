@@ -36,12 +36,11 @@ def make_chart(output_path="benchmark_chart.png"):
             "invert": True,
         },
         {
-            "title": "Tokens Trained (M)",
-            "subtitle": "Fewer tokens, better result → more efficient",
-            "values": [14.9, 15.0],
-            "fmt": ".1f",
-            "suffix": "M",
-            "invert": True,
+            "title": "Throughput (tok/sec)",
+            "subtitle": "Higher is better",
+            "values": [49803, 50000],
+            "fmt": ",.0f",
+            "invert": False,
         },
     ]
 
