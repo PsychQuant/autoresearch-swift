@@ -17,6 +17,8 @@ The Muon optimizer gives ~11% better training quality on the same budget. Native
 
 ## Results on M4 Max (128GB)
 
+![Benchmark](benchmark_chart.png)
+
 Same config, same data, same 5-minute training budget:
 
 | | Swift | Python MLX |
