@@ -38,37 +38,33 @@ class CausalSelfAttention: Module {
         self.rope = RoPE(dimensions: headDim, traditional: false, base: 10000)
     }
 
-    func callAsFunction(_ x: MLXArray, ve: MLXArray?, mask: MLXArray?) -> MLXArray {
+    func callAsFunction(_ x: MLXArray, ve: MLXArray?,
+                         maskMode: MLXFast.ScaledDotProductAttentionMaskMode) -> MLXArray {
         let (B, T, _) = (x.dim(0), x.dim(1), x.dim(2))
 
         var q = cQ(x).reshaped(B, T, nHead, headDim)
         var k = cK(x).reshaped(B, T, nKVHead, headDim)
         var v = cV(x).reshaped(B, T, nKVHead, headDim)
 
-        // Value residual (ResFormer): mix in value embedding with gated residual
         if let ve = ve, let veGate = veGate {
             let veReshaped = ve.reshaped(B, T, nKVHead, headDim)
             let gate = 2.0 * sigmoid(veGate(x[0..., 0..., 0..<veGateChannels]))
             v = v + MLX.expandedDimensions(gate, axis: -1) * veReshaped
         }
 
-        // Transpose to [B, heads, T, headDim]
         q = q.transposed(0, 2, 1, 3)
         k = k.transposed(0, 2, 1, 3)
         v = v.transposed(0, 2, 1, 3)
 
-        // RoPE + QK norm
         q = rmsNorm(rope(q))
         k = rmsNorm(rope(k))
 
-        // Scaled dot-product attention
         let scale: Float = 1.0 / Foundation.sqrt(Float(headDim))
         var y = MLXFast.scaledDotProductAttention(
             queries: q, keys: k, values: v,
-            scale: scale, mask: mask
+            scale: scale, mask: maskMode
         )
 
-        // Reshape back to [B, T, nEmbd]
         y = y.transposed(0, 2, 1, 3).reshaped(B, T, -1)
         return cProj(y)
     }

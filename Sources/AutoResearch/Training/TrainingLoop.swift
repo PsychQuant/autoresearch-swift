@@ -142,8 +142,9 @@ class TrainingLoop {
 
         print()
 
-        let finalTokPerSec = totalTrainingTime > 0
-            ? Int(Double(step * config.totalBatchSize) / totalTrainingTime)
+        let steadyStateSteps = step - config.startupExcludeSteps
+        let finalTokPerSec = totalTrainingTime > 0 && steadyStateSteps > 0
+            ? Int(Double(steadyStateSteps * config.totalBatchSize) / totalTrainingTime)
             : 0
 
         return TrainingSummary(

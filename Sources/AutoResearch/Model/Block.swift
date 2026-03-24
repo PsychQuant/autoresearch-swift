@@ -1,4 +1,5 @@
 import MLX
+import MLXFast
 import MLXNN
 
 class Block: Module {
@@ -20,9 +21,10 @@ class Block: Module {
         }
     }
 
-    func callAsFunction(_ x: MLXArray, idx: MLXArray, mask: MLXArray?) -> MLXArray {
+    func callAsFunction(_ x: MLXArray, idx: MLXArray,
+                         maskMode: MLXFast.ScaledDotProductAttentionMaskMode) -> MLXArray {
         let ve: MLXArray? = veEmbed?(idx)
-        var out = x + attn(rmsNorm(x), ve: ve, mask: mask)
+        var out = x + attn(rmsNorm(x), ve: ve, maskMode: maskMode)
         out = out + mlp(rmsNorm(out))
         return out
     }

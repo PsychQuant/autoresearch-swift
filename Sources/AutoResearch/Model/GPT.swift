@@ -109,17 +109,15 @@ class GPT: Module {
 
     func forward(_ idx: MLXArray, targets: MLXArray? = nil, reduction: String = "mean") -> MLXArray {
         let (_, seqLen) = (idx.dim(0), idx.dim(1))
-        let masks = getMasks(seqLen: seqLen)
+        let maskModes = getMaskModes(seqLen: seqLen)
 
         var x = wte(idx)
         x = rmsNorm(x)
         let x0 = x
 
-        // Transformer blocks with residual stream
-        // Each block now owns its own VE (if any)
         for (i, block) in blocks.enumerated() {
             x = residLambdas[i] * x + x0Lambdas[i] * x0
-            x = block(x, idx: idx, mask: masks[i])
+            x = block(x, idx: idx, maskMode: maskModes[i])
         }
 
         x = rmsNorm(x)
@@ -141,45 +139,36 @@ class GPT: Module {
         return crossEntropy(logits: logits, targets: targets)
     }
 
-    // MARK: - Mask cache
+    // MARK: - Mask modes
 
-    private func getMasks(seqLen: Int) -> [MLXArray] {
+    private func getMaskModes(seqLen: Int) -> [MLXFast.ScaledDotProductAttentionMaskMode] {
         return windowSizes.map { windowSize in
-            let key = "\(seqLen)_\(windowSize)"
-            if let cached = maskCache[key] { return cached }
-            let mask: MLXArray
             if windowSize >= seqLen {
-                mask = createCausalMask(seqLen: seqLen)
+                // Full context → use native causal mode (no dense mask needed)
+                return .causal
             } else {
-                mask = createSlidingWindowMask(seqLen: seqLen, windowSize: windowSize)
+                // Sliding window → need additive mask array
+                let key = "\(seqLen)_\(windowSize)"
+                if let cached = maskCache[key] {
+                    return .array(cached)
+                }
+                let mask = createSlidingWindowMask(seqLen: seqLen, windowSize: windowSize)
+                maskCache[key] = mask
+                return .array(mask)
             }
-            maskCache[key] = mask
-            return mask
         }
     }
 }
 
-// MARK: - Loss functions
+// MARK: - Loss functions (using MLX built-in cross-entropy)
 
 private func crossEntropyPerToken(logits: MLXArray, targets: MLXArray) -> MLXArray {
-    let B = logits.dim(0)
-    let T = logits.dim(1)
-    let V = logits.dim(2)
-
-    let logitsFlat = logits.reshaped(B * T, V)
-    let targetsRaw = targets.reshaped(B * T)
-    // Replace -1 (padding) with 0 to avoid out-of-bounds gather
-    let targetsFlat = MLX.where(targetsRaw .>= MLXArray(Int32(0)), targetsRaw, MLXArray(Int32(0)))
-
-    let maxLogits = logitsFlat.max(axis: -1, keepDims: true)
-    let shifted = logitsFlat - maxLogits
-    let logSumExp = log(sum(exp(shifted), axis: -1, keepDims: true))
-    let logProbs = shifted - logSumExp
-
-    let indices = MLX.expandedDimensions(targetsFlat, axis: -1)
-    let targetLogProbs = takeAlong(logProbs, indices, axis: -1).squeezed(axis: -1)
-
-    return -targetLogProbs.reshaped(B, T)
+    // Replace -1 (padding) with 0 to avoid out-of-bounds, then mask later
+    let valid = targets .>= MLXArray(Int32(0))
+    let targetsSafe = MLX.where(valid, targets, MLXArray(Int32(0)))
+    // MLX built-in cross-entropy: fused log-softmax + nll
+    let ce = MLXNN.crossEntropy(logits: logits, targets: targetsSafe, reduction: .none)
+    return ce
 }
 
 private func crossEntropy(logits: MLXArray, targets: MLXArray) -> MLXArray {
