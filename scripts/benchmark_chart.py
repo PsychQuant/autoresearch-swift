@@ -23,7 +23,7 @@ def make_chart(output_path="benchmark_chart.png"):
         {
             "title": "Training Quality (val_bpb)",
             "subtitle": "Lower is better",
-            "values": [1.677, 1.863],
+            "values": [1.551, 1.863],
             "fmt": ".3f",
             "invert": True,  # lower is better → highlight the lower bar
         },
@@ -38,7 +38,7 @@ def make_chart(output_path="benchmark_chart.png"):
         {
             "title": "Tokens Trained (M)",
             "subtitle": "Fewer tokens, better result → more efficient",
-            "values": [13.6, 15.0],
+            "values": [14.9, 15.0],
             "fmt": ".1f",
             "suffix": "M",
             "invert": True,
