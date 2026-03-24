@@ -27,10 +27,8 @@ Same config, same data, same 5-minute training budget:
 | Optimizer | **Muon + AdamW** | AdamW only |
 | Startup to first step | **0.1s** | 1.4s |
 | Runtime dependencies | **0** (single binary) | Python + MLX + NumPy |
-| Tokens trained | 13.6M | 15.0M |
-| BPB per million tokens | **0.123** | 0.124 |
 
-The key result: Swift achieves **11% better val_bpb while training fewer tokens**. The Muon optimizer learns more per gradient step, so raw tok/sec matters less than what each token contributes to the model.
+Swift achieves **11% better val_bpb** on the same 5-minute budget. The difference comes from the Muon optimizer — it orthogonalizes gradients before each update, so the model learns more per step. The Python MLX port only has AdamW.
 
 > Following the original's design, results are hardware-specific. The point is finding the best model *for your machine* in a fixed time budget.
 
