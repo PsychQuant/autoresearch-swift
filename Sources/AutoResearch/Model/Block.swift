@@ -28,8 +28,9 @@ class Block: Module {
     }
 }
 
-/// RMS Normalization (without learnable weights — matches reference implementation)
+/// RMS Normalization in float32 (matches reference F.rms_norm behavior)
 func rmsNorm(_ x: MLXArray) -> MLXArray {
-    let variance = mean(x * x, axis: -1, keepDims: true)
-    return x * rsqrt(variance + 1e-5)
+    let xf = x.asType(.float32)
+    let variance = mean(xf * xf, axis: -1, keepDims: true)
+    return x * rsqrt(variance + 1e-5).asType(x.dtype)
 }

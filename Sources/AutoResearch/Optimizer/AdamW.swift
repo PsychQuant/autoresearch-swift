@@ -75,9 +75,6 @@ class AdamWOptimizer: OptimizerProtocol {
             if path.contains("veEmbed") {
                 // Value embeddings: embedding LR, zero weight decay (matches reference)
                 cfg = ParamConfig(lr: config.embeddingLR * dmodelScale, betas: config.adamBetas, eps: 1e-10, weightDecay: 0)
-            } else if path.contains("veGate") {
-                // VE gate weights: embedding LR, zero weight decay
-                cfg = ParamConfig(lr: config.embeddingLR * dmodelScale, betas: config.adamBetas, eps: 1e-10, weightDecay: 0)
             } else if path.contains("blocks") && param.ndim == 2 {
                 // Block matrix params (only reached in AdamW-only mode)
                 cfg = ParamConfig(lr: config.matrixLR, betas: config.adamBetas, eps: 1e-10, weightDecay: config.weightDecay)

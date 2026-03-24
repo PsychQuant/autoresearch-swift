@@ -41,7 +41,7 @@ let modelConfig = GPTConfig(
     windowPattern: config.windowPattern
 )
 
-let model = GPT(config: modelConfig, activationName: config.activation)
+let model = GPT(config: modelConfig, activationName: config.activation, logitCap: config.logitCap, mlpRatio: config.mlpRatio)
 model.initWeights()
 MLX.eval(model.parameters())
 

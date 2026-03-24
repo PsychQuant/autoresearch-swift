@@ -34,7 +34,8 @@ class CausalSelfAttention: Module {
             self.veGate = nil
         }
 
-        self.rope = RoPE(dimensions: headDim, traditional: true, base: 10000)
+        // traditional=false: half-split rotary (matches reference's apply_rotary_emb)
+        self.rope = RoPE(dimensions: headDim, traditional: false, base: 10000)
     }
 
     func callAsFunction(_ x: MLXArray, ve: MLXArray?, mask: MLXArray?) -> MLXArray {

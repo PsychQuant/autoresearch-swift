@@ -19,7 +19,7 @@ class MuonAdamWOptimizer: OptimizerProtocol {
         for (path, param) in model.parameters().flattened() {
             // Block 2D matrices → Muon, EXCEPT veEmbed and veGate (those use AdamW)
             let isBlockMatrix = path.contains("blocks") && param.ndim == 2
-            let isValueEmbed = path.contains("veEmbed") || path.contains("veGate")
+            let isValueEmbed = path.contains("veEmbed")  // veGate stays with Muon (block param)
             if isBlockMatrix && !isValueEmbed {
                 muonPathSet.insert(path)
                 muonPathShapes.append((path, param.shape))

@@ -60,22 +60,22 @@ class GPT: Module {
         for (path, param) in parameters().flattened() {
             let newVal: MLXArray
             if path.contains("wte") && path.hasSuffix("weight") {
-                // Token embedding: normal(std=1.0) → bf16
+                // Token embedding: normal(std=1.0) → bf16 (reference casts embeddings)
                 newVal = MLXRandom.normal(param.shape).asType(.bfloat16)
             } else if path.contains("lmHead") && path.hasSuffix("weight") {
-                // LM head: normal(std=0.001)
+                // LM head: normal(std=0.001) → bf16
                 newVal = (MLXRandom.normal(param.shape) * 0.001).asType(.bfloat16)
             } else if path.contains("cProj") && path.hasSuffix("weight") {
-                // Attention c_proj and MLP c_proj: zeros
+                // Attention c_proj and MLP c_proj: zeros → bf16
                 newVal = MLXArray.zeros(param.shape, dtype: .bfloat16)
             } else if path.contains("veGate") && path.hasSuffix("weight") {
-                // VE gate: zeros (sigmoid(0)=0.5, scaled by 2 → neutral 1.0)
+                // VE gate: zeros → bf16
                 newVal = MLXArray.zeros(param.shape, dtype: .bfloat16)
             } else if path.contains("veEmbed") && path.hasSuffix("weight") {
                 // Value embeddings: uniform → bf16
                 newVal = MLXRandom.uniform(low: -s, high: s, param.shape).asType(.bfloat16)
             } else if param.ndim == 2 {
-                // Q, K, V, c_fc: uniform
+                // Q, K, V, c_fc: uniform → bf16
                 newVal = MLXRandom.uniform(low: -s, high: s, param.shape).asType(.bfloat16)
             } else {
                 continue
