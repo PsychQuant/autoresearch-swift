@@ -48,9 +48,8 @@ class MuonOptimizer {
         }
     }
 
-    func update(model: GPT, grads: ModuleParameters) {
-        let flatGrads = Dictionary(grads.flattened(), uniquingKeysWith: { a, _ in a })
-        let flatParams = Dictionary(model.parameters().flattened(), uniquingKeysWith: { a, _ in a })
+    /// Compute parameter updates without applying them (for MuonAdamW batching)
+    func computeUpdates(flatGrads: [String: MLXArray], flatParams: [String: MLXArray]) -> [(String, MLXArray)] {
 
         var allUpdates: [(String, MLXArray)] = []
 
@@ -163,8 +162,15 @@ class MuonOptimizer {
             }
         }
 
-        if !allUpdates.isEmpty {
-            applyParameterUpdates(to: model, updates: allUpdates)
+        return allUpdates
+    }
+
+    func update(model: GPT, grads: ModuleParameters) {
+        let flatGrads = Dictionary(grads.flattened(), uniquingKeysWith: { a, _ in a })
+        let flatParams = Dictionary(model.parameters().flattened(), uniquingKeysWith: { a, _ in a })
+        let updates = computeUpdates(flatGrads: flatGrads, flatParams: flatParams)
+        if !updates.isEmpty {
+            applyParameterUpdates(to: model, updates: updates)
         }
     }
 

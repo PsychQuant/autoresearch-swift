@@ -25,6 +25,10 @@ class TrainingLoop {
 
     func run() -> TrainingSummary {
         let tokensPerFwdBwd = config.deviceBatchSize * config.sequenceLen
+        precondition(
+            config.totalBatchSize % tokensPerFwdBwd == 0,
+            "totalBatchSize (\(config.totalBatchSize)) must be divisible by deviceBatchSize * seqLen (\(tokensPerFwdBwd))"
+        )
         let gradAccumSteps = config.totalBatchSize / tokensPerFwdBwd
         print("Gradient accumulation steps: \(gradAccumSteps)")
 
@@ -55,7 +59,7 @@ class TrainingLoop {
                 let (loss, grads) = lossGradFn(model, currentBatch.0, currentBatch.1)
                 // MLX array materialization
                 MLX.eval(loss, grads)
-                trainLoss = loss
+                trainLoss = trainLoss + loss
 
                 if let existing = accumGrads {
                     // Add grads element-wise using NestedDictionary.mapValues
@@ -75,6 +79,9 @@ class TrainingLoop {
                 }
                 epoch = trainLoader.epoch
             }
+
+            // Average loss across micro-steps
+            trainLoss = trainLoss / Float(gradAccumSteps)
 
             // Average accumulated gradients
             if gradAccumSteps > 1 {

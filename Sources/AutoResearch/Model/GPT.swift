@@ -52,15 +52,43 @@ class GPT: Module {
 
     func initWeights() {
         let nEmbd = config.nEmbd
-        let scale = Float(sqrt(3.0)) * pow(Float(nEmbd), -0.5)
+        let s = Float(sqrt(3.0)) * pow(Float(nEmbd), -0.5)
 
-        self.apply { array in
-            if array.ndim == 2 {
-                return MLXRandom.uniform(low: -scale, high: scale, array.shape).asType(.bfloat16)
+        // Build per-parameter init values keyed by ObjectIdentifier
+        var initMap: [ObjectIdentifier: MLXArray] = [:]
+
+        for (path, param) in parameters().flattened() {
+            let newVal: MLXArray
+            if path.contains("wte") && path.hasSuffix("weight") {
+                // Token embedding: normal(std=1.0) → bf16
+                newVal = MLXRandom.normal(param.shape).asType(.bfloat16)
+            } else if path.contains("lmHead") && path.hasSuffix("weight") {
+                // LM head: normal(std=0.001)
+                newVal = (MLXRandom.normal(param.shape) * 0.001).asType(.bfloat16)
+            } else if path.contains("cProj") && path.hasSuffix("weight") {
+                // Attention c_proj and MLP c_proj: zeros
+                newVal = MLXArray.zeros(param.shape, dtype: .bfloat16)
+            } else if path.contains("veGate") && path.hasSuffix("weight") {
+                // VE gate: zeros (sigmoid(0)=0.5, scaled by 2 → neutral 1.0)
+                newVal = MLXArray.zeros(param.shape, dtype: .bfloat16)
+            } else if path.contains("veEmbed") && path.hasSuffix("weight") {
+                // Value embeddings: uniform → bf16
+                newVal = MLXRandom.uniform(low: -s, high: s, param.shape).asType(.bfloat16)
+            } else if param.ndim == 2 {
+                // Q, K, V, c_fc: uniform
+                newVal = MLXRandom.uniform(low: -s, high: s, param.shape).asType(.bfloat16)
+            } else {
+                continue
             }
-            return array
+            initMap[ObjectIdentifier(param)] = newVal
         }
 
+        // Apply all at once
+        self.apply { array in
+            initMap[ObjectIdentifier(array)] ?? array
+        }
+
+        // Per-layer scalars
         residLambdas = MLXArray.ones([config.nLayer])
         x0Lambdas = MLXArray.full([config.nLayer], values: MLXArray(Float(0.1)))
     }
@@ -139,7 +167,9 @@ private func crossEntropyPerToken(logits: MLXArray, targets: MLXArray) -> MLXArr
     let V = logits.dim(2)
 
     let logitsFlat = logits.reshaped(B * T, V)
-    let targetsFlat = targets.reshaped(B * T)
+    let targetsRaw = targets.reshaped(B * T)
+    // Replace -1 (padding) with 0 to avoid out-of-bounds gather
+    let targetsFlat = MLX.where(targetsRaw .>= MLXArray(Int32(0)), targetsRaw, MLXArray(Int32(0)))
 
     let maxLogits = logitsFlat.max(axis: -1, keepDims: true)
     let shifted = logitsFlat - maxLogits

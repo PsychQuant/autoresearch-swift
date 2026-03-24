@@ -78,7 +78,7 @@ class CausalSelfAttention: Module {
 func createCausalMask(seqLen: Int) -> MLXArray {
     let indices = MLXArray(0..<Int32(seqLen))
     let blocked = MLX.expandedDimensions(indices, axis: 0) .> MLX.expandedDimensions(indices, axis: 1)
-    return MLX.where(blocked, MLXArray(Float(-1e9)), MLXArray(Float(0)))
+    return MLX.where(blocked, MLXArray(-Float.infinity), MLXArray(Float(0)))
 }
 
 func createSlidingWindowMask(seqLen: Int, windowSize: Int) -> MLXArray {
@@ -88,7 +88,7 @@ func createSlidingWindowMask(seqLen: Int, windowSize: Int) -> MLXArray {
     let causal = col .> row
     let tooFar = (row - col) .>= MLXArray(Int32(windowSize))
     let blocked = logicalOr(causal, tooFar)
-    return MLX.where(blocked, MLXArray(Float(-1e9)), MLXArray(Float(0)))
+    return MLX.where(blocked, MLXArray(-Float.infinity), MLXArray(Float(0)))
 }
 
 func computeWindowSizes(config: GPTConfig) -> [Int] {

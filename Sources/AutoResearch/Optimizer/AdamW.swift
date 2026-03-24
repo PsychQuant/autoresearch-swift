@@ -72,12 +72,16 @@ class AdamWOptimizer: OptimizerProtocol {
             if excludePaths.contains(path) { continue }
 
             let cfg: ParamConfig
-            if path.contains("blocks") && param.ndim == 2 {
+            if path.contains("veEmbed") {
+                // Value embeddings: embedding LR, zero weight decay (matches reference)
+                cfg = ParamConfig(lr: config.embeddingLR * dmodelScale, betas: config.adamBetas, eps: 1e-10, weightDecay: 0)
+            } else if path.contains("veGate") {
+                // VE gate weights: embedding LR, zero weight decay
+                cfg = ParamConfig(lr: config.embeddingLR * dmodelScale, betas: config.adamBetas, eps: 1e-10, weightDecay: 0)
+            } else if path.contains("blocks") && param.ndim == 2 {
                 // Block matrix params (only reached in AdamW-only mode)
                 cfg = ParamConfig(lr: config.matrixLR, betas: config.adamBetas, eps: 1e-10, weightDecay: config.weightDecay)
             } else if path.contains("wte") {
-                cfg = ParamConfig(lr: config.embeddingLR * dmodelScale, betas: config.adamBetas, eps: 1e-10, weightDecay: 0)
-            } else if path.contains("valueEmbeds") {
                 cfg = ParamConfig(lr: config.embeddingLR * dmodelScale, betas: config.adamBetas, eps: 1e-10, weightDecay: 0)
             } else if path.contains("lmHead") {
                 cfg = ParamConfig(lr: config.unembeddingLR * dmodelScale, betas: config.adamBetas, eps: 1e-10, weightDecay: 0)
@@ -129,7 +133,8 @@ class AdamWOptimizer: OptimizerProtocol {
         return paramF32.asType(param.dtype)
     }
 
-    func update(model: GPT, grads: ModuleParameters) {
+    /// Compute parameter updates without applying them (for MuonAdamW batching)
+    func computeUpdates(model: GPT, grads: ModuleParameters) -> [(String, MLXArray)] {
         let flatGrads = grads.flattened()
         let flatParams = Dictionary(model.parameters().flattened(), uniquingKeysWith: { a, _ in a })
 
@@ -140,7 +145,11 @@ class AdamWOptimizer: OptimizerProtocol {
             let newParam = adamStep(path: path, grad: grad, param: param)
             updates.append((path, newParam))
         }
+        return updates
+    }
 
+    func update(model: GPT, grads: ModuleParameters) {
+        let updates = computeUpdates(model: model, grads: grads)
         if !updates.isEmpty {
             applyParameterUpdates(to: model, updates: updates)
         }

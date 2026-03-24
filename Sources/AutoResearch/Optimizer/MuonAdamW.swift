@@ -17,7 +17,10 @@ class MuonAdamWOptimizer: OptimizerProtocol {
         var muonPathShapes: [(String, [Int])] = []
 
         for (path, param) in model.parameters().flattened() {
-            if path.contains("blocks") && param.ndim == 2 {
+            // Block 2D matrices → Muon, EXCEPT veEmbed and veGate (those use AdamW)
+            let isBlockMatrix = path.contains("blocks") && param.ndim == 2
+            let isValueEmbed = path.contains("veEmbed") || path.contains("veGate")
+            if isBlockMatrix && !isValueEmbed {
                 muonPathSet.insert(path)
                 muonPathShapes.append((path, param.shape))
             }
@@ -32,8 +35,16 @@ class MuonAdamWOptimizer: OptimizerProtocol {
     }
 
     func update(model: GPT, grads: ModuleParameters) {
-        adamw.update(model: model, grads: grads)
-        muon.update(model: model, grads: grads)
+        // Collect updates from both optimizers, apply once (single model traversal)
+        let flatGrads = Dictionary(grads.flattened(), uniquingKeysWith: { a, _ in a })
+        let flatParams = Dictionary(model.parameters().flattened(), uniquingKeysWith: { a, _ in a })
+
+        var allUpdates = adamw.computeUpdates(model: model, grads: grads)
+        allUpdates += muon.computeUpdates(flatGrads: flatGrads, flatParams: flatParams)
+
+        if !allUpdates.isEmpty {
+            applyParameterUpdates(to: model, updates: allUpdates)
+        }
     }
 
     func setLRMultiplier(_ multiplier: Float) {
