@@ -13,7 +13,7 @@ Same idea as the original — fixed 5-minute time budget, one metric (`val_bpb`)
 | Runtime deps | None | Python + MLX | Python + PyTorch + CUDA |
 | val_bpb (5 min, depth=4) | **1.551** | 1.863 | N/A (different HW) |
 
-The Muon optimizer gives ~11% better training quality on the same budget. Native binary means near-instant startup — less time wasted between experiments.
+The Muon optimizer gives ~17% better training quality on the same budget. Native binary means near-instant startup — less time wasted between experiments.
 
 ## Results on M4 Max (128GB)
 
@@ -35,14 +35,11 @@ Swift achieves **17% better val_bpb** on the same 5-minute budget. The differenc
 ## Quick Start
 
 ```bash
-# One-time data prep (needs Python)
-pip install tiktoken rustbpe pyarrow numpy requests
-python3 scripts/prepare_tokens.py
-
-# Build and run
 swift build -c release
 .build/release/AutoResearch
 ```
+
+> First run requires training data. See [docs/benchmark.md](docs/benchmark.md) for data preparation.
 
 ## Agent Loop
 
@@ -68,7 +65,6 @@ Hardware is auto-detected — the system reads your chip model and memory to set
 
 - macOS 14.0+ with Apple Silicon (M1/M2/M3/M4)
 - Swift 5.9+
-- Python 3.10+ (one-time data prep only)
 
 ## Credits
 
