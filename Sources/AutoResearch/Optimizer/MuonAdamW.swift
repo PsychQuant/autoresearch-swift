@@ -35,11 +35,11 @@ class MuonAdamWOptimizer: OptimizerProtocol {
     }
 
     func update(model: GPT, grads: ModuleParameters) {
-        // Collect updates from both optimizers, apply once (single model traversal)
+        // Flatten once, share across both optimizers
         let flatGrads = Dictionary(grads.flattened(), uniquingKeysWith: { a, _ in a })
         let flatParams = Dictionary(model.parameters().flattened(), uniquingKeysWith: { a, _ in a })
 
-        var allUpdates = adamw.computeUpdates(model: model, grads: grads)
+        var allUpdates = adamw.computeUpdates(flatGrads: flatGrads, flatParams: flatParams)
         allUpdates += muon.computeUpdates(flatGrads: flatGrads, flatParams: flatParams)
 
         if !allUpdates.isEmpty {

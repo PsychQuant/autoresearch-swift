@@ -23,7 +23,7 @@ def make_chart(output_path="benchmark_chart.png"):
         {
             "title": "Training Quality (val_bpb)",
             "subtitle": "Lower is better",
-            "values": [1.418, 1.863],
+            "values": [1.406, 1.863],
             "fmt": ".3f",
             "invert": True,  # lower is better → highlight the lower bar
         },
@@ -38,7 +38,7 @@ def make_chart(output_path="benchmark_chart.png"):
         {
             "title": "Throughput (tok/sec)",
             "subtitle": "Higher is better",
-            "values": [50035, 50000],
+            "values": [54051, 50000],
             "fmt": ",.0f",
             "invert": False,
         },

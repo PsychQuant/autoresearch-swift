@@ -15,22 +15,16 @@ protocol OptimizerProtocol {
 // MARK: - Parameter Utilities
 
 /// Apply parameter updates to a model using identity matching.
-/// This bypasses Module.update(parameters:) which has issues with dictionary-of-modules
-/// (e.g. [String: Embedding] like valueEmbeds).
-///
-/// Strategy: Snapshot current param references → compute new values → apply via identity map.
+/// Uses cached path order to avoid repeated model.parameters().flattened() calls.
 func applyParameterUpdates(to model: GPT, updates: [(String, MLXArray)]) {
-    // Build identity map: ObjectIdentifier of current param → new value
-    let currentParams = Dictionary(model.parameters().flattened(), uniquingKeysWith: { a, _ in a })
+    let updateDict = Dictionary(updates, uniquingKeysWith: { _, b in b })
+    // Get current param refs (one traversal) and build identity map
     var identityMap: [ObjectIdentifier: MLXArray] = [:]
-
-    for (path, newValue) in updates {
-        if let currentArray = currentParams[path] {
+    for (path, currentArray) in model.parameters().flattened() {
+        if let newValue = updateDict[path] {
             identityMap[ObjectIdentifier(currentArray)] = newValue
         }
     }
-
-    // Apply updates by matching array identity
     model.apply { array in
         identityMap[ObjectIdentifier(array)] ?? array
     }
@@ -59,6 +53,8 @@ class AdamWOptimizer: OptimizerProtocol {
     private var states: [String: AdamState] = [:]
     private var initialLRs: [String: Float] = [:]
     private let excludePaths: Set<String>
+    /// Cached list of parameter paths this optimizer manages (avoids per-step flatten)
+    private let managedPaths: [String]
 
     /// - Parameter excludePaths: paths routed to another optimizer (e.g. Muon in MuonAdamW mode)
     init(model: GPT, config: ExperimentConfig, excludePaths: Set<String> = []) {
@@ -93,6 +89,7 @@ class AdamWOptimizer: OptimizerProtocol {
             paramConfigs[path] = cfg
             initialLRs[path] = cfg.lr
         }
+        self.managedPaths = Array(paramConfigs.keys)
     }
 
     private func adamStep(path: String, grad: MLXArray, param: MLXArray) -> MLXArray {
@@ -131,14 +128,10 @@ class AdamWOptimizer: OptimizerProtocol {
     }
 
     /// Compute parameter updates without applying them (for MuonAdamW batching)
-    func computeUpdates(model: GPT, grads: ModuleParameters) -> [(String, MLXArray)] {
-        let flatGrads = grads.flattened()
-        let flatParams = Dictionary(model.parameters().flattened(), uniquingKeysWith: { a, _ in a })
-
+    func computeUpdates(flatGrads: [String: MLXArray], flatParams: [String: MLXArray]) -> [(String, MLXArray)] {
         var updates: [(String, MLXArray)] = []
-        for (path, grad) in flatGrads {
-            if excludePaths.contains(path) { continue }
-            guard let param = flatParams[path], paramConfigs[path] != nil else { continue }
+        for path in managedPaths {
+            guard let grad = flatGrads[path], let param = flatParams[path] else { continue }
             let newParam = adamStep(path: path, grad: grad, param: param)
             updates.append((path, newParam))
         }
@@ -146,7 +139,9 @@ class AdamWOptimizer: OptimizerProtocol {
     }
 
     func update(model: GPT, grads: ModuleParameters) {
-        let updates = computeUpdates(model: model, grads: grads)
+        let flatGrads = Dictionary(grads.flattened(), uniquingKeysWith: { a, _ in a })
+        let flatParams = Dictionary(model.parameters().flattened(), uniquingKeysWith: { a, _ in a })
+        let updates = computeUpdates(flatGrads: flatGrads, flatParams: flatParams)
         if !updates.isEmpty {
             applyParameterUpdates(to: model, updates: updates)
         }
