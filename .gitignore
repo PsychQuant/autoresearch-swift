@@ -1,0 +1,23 @@
+# Build
+.build/
+.swiftpm/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+*.metallib
+
+# macOS
+.DS_Store
+
+# Spectra
+.spectra/
+openspec/.vector-search.db*
+
+# Runtime config (agent-generated)
+experiment.json
+
+# References are separate repos
+references/
+
+# Claude
+.claude/

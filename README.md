@@ -1,0 +1,81 @@
+# autoresearch-swift
+
+Native Swift port of [Karpathy's autoresearch](https://github.com/karpathy/autoresearch) for Apple Silicon. Give an AI agent a training loop, let it experiment overnight, wake up to a better model.
+
+Same idea as the original — fixed 5-minute time budget, one metric (`val_bpb`), keep-or-revert via git — but compiled to a native binary with zero Python at runtime. Faster startup, Muon optimizer included, hardware auto-detected.
+
+## Why Swift on Mac
+
+| | Swift (this repo) | Python MLX | Python CUDA |
+| --- | --- | --- | --- |
+| Startup | **0.1s** | ~1.4s | ~5s |
+| Optimizer | **Muon + AdamW** | AdamW only | Muon + AdamW |
+| Runtime deps | None | Python + MLX | Python + PyTorch + CUDA |
+| val_bpb (5 min, depth=4) | **1.677** | 1.863 | N/A (different HW) |
+
+The Muon optimizer gives ~11% better training quality on the same budget. Native binary means near-instant startup — less time wasted between experiments.
+
+## Results on M4 Max (128GB)
+
+Same config, same data, same 5-minute training budget:
+
+| | Swift | Python MLX |
+| --- | --- | --- |
+| **val_bpb** (lower = better) | **1.677** | 1.863 |
+| Optimizer | **Muon + AdamW** | AdamW only |
+| Startup to first step | **0.1s** | 1.4s |
+| Runtime dependencies | **0** (single binary) | Python + MLX + NumPy |
+| Tokens trained | 13.6M | 15.0M |
+| BPB per million tokens | **0.123** | 0.124 |
+
+The key result: Swift achieves **11% better val_bpb while training fewer tokens**. The Muon optimizer learns more per gradient step, so raw tok/sec matters less than what each token contributes to the model.
+
+> Following the original's design, results are hardware-specific. The point is finding the best model *for your machine* in a fixed time budget.
+
+## Quick Start
+
+```bash
+# One-time data prep (needs Python)
+pip install tiktoken rustbpe pyarrow numpy requests
+python3 scripts/prepare_tokens.py
+
+# Build and run
+swift build -c release
+.build/release/AutoResearch
+```
+
+## Agent Loop
+
+See [program.md](program.md). Same workflow as Karpathy's original:
+
+1. Agent reads `results.tsv`
+2. Writes `experiment.json` with a hypothesis
+3. Runs training, parses output
+4. Keeps or reverts, repeats
+
+```json
+{
+  "changes": {
+    "depth": 6,
+    "activation": "silu"
+  }
+}
+```
+
+Hardware is auto-detected — the system reads your chip model and memory to set sensible defaults. The agent only overrides what it wants to change.
+
+## Requirements
+
+- macOS 14.0+ with Apple Silicon (M1/M2/M3/M4)
+- Swift 5.9+
+- Python 3.10+ (one-time data prep only)
+
+## Credits
+
+- [karpathy/autoresearch](https://github.com/karpathy/autoresearch) — original (PyTorch/CUDA/H100)
+- [trevin-creator/autoresearch-mlx](https://github.com/trevin-creator/autoresearch-mlx) — Python MLX port
+- [MLX-Swift](https://github.com/ml-explore/mlx-swift) — Apple's ML framework for Swift
+
+## License
+
+MIT
