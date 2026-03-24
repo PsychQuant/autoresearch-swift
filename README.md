@@ -12,8 +12,9 @@ Same idea as the original — fixed 5-minute time budget, one metric (`val_bpb`)
 | Optimizer | **Muon + AdamW** | AdamW only | Muon + AdamW |
 | Runtime deps | None | Python + MLX | Python + PyTorch + CUDA |
 | val_bpb (5 min, depth=4) | **1.406** | 1.863 | N/A (different HW) |
+| tok/sec | **54,051** | ~50,000 | N/A |
 
-The Muon optimizer gives ~25% better training quality on the same budget. Native binary means near-instant startup — less time wasted between experiments.
+Muon optimizer gives ~25% better training quality. Native binary starts 14x faster. Throughput matches or beats Python MLX.
 
 ## Results on M4 Max (128GB)
 
@@ -24,11 +25,12 @@ Same config, same data, same 5-minute training budget:
 | | Swift | Python MLX |
 | --- | --- | --- |
 | **val_bpb** (lower = better) | **1.406** | 1.863 |
-| Optimizer | **Muon + AdamW** | AdamW only |
+| **tok/sec** | **54,051** | ~50,000 |
 | Startup to first step | **0.1s** | 1.4s |
+| Optimizer | **Muon + AdamW** | AdamW only |
 | Runtime dependencies | **0** (single binary) | Python + MLX + NumPy |
 
-Swift achieves **25% better val_bpb** on the same 5-minute budget. The difference comes from the Muon optimizer — it orthogonalizes gradients before each update, so the model learns more per step. The Python MLX port only has AdamW.
+All three metrics — quality, speed, startup — beat Python MLX on the same hardware and config.
 
 > Following the original's design, results are hardware-specific. The point is finding the best model *for your machine* in a fixed time budget.
 
